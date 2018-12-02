@@ -54,7 +54,11 @@ list<tagData> g_cResponseList;
 list<tagData> g_cProcessList;
 
 pthread_mutex_t g_cProcessMutex;
+pthread_mutex_t g_cProcessMutexCounter;
 pthread_mutex_t g_cResponseMutex;
+int g_cLockerInt = 0;
+int g_cListLen = 0;
+
 
 int ExecuteFunction( const tagData& stData);
 
@@ -74,7 +78,7 @@ void* ProcessThread(void* pArg)
 //           exit(1);
 //           
 //       }
-       if(!g_cProcessList.empty())
+       if(g_cListLen > 0)
        {
            //pthread_mutex_unlock(&g_cProcessMutex);
            printf("In funtion \nthread id = %d\n", pthread_self());
@@ -85,15 +89,55 @@ void* ProcessThread(void* pArg)
               perror("unable to take lock");
               exit(1);
            }
+            while(g_cLockerInt == 1)
+            {
+
+            }
+            if(g_cLockerInt == 0)
+            {
+                g_cLockerInt = 1;
+            }
 //           if(g_cResponseList.empty())
 //           {
 //               pthread_mutex_unlock(&g_cProcessMutex);
 //               continue;
 //           }
            cout << "process thread process mutex acquired" << endl;
+            if(g_cListLen <= 0)
+            {
+                      if(g_cLockerInt == 1)
+                    {
+                        g_cLockerInt = 0;
+                    }
+            lnReturnVal = pthread_mutex_unlock(&g_cProcessMutex);
+            if(lnReturnVal != 0)
+            {
+                 printf("%s, %d",strerror(errno),__LINE__);
+                 perror("unable to take lock");
+                 exit(1);
+             }
+                continue;
+                
+            }
            tagData lstData = g_cProcessList.back();
            g_cProcessList.pop_back();
-           
+           lnReturnVal = pthread_mutex_lock(&g_cProcessMutexCounter);
+            if(lnReturnVal != 0)
+            {
+                printf("%s %d",strerror(errno),__LINE__);
+                exit(1);
+            }
+            g_cListLen--;
+            lnReturnVal = pthread_mutex_unlock(&g_cProcessMutexCounter);
+            if(lnReturnVal != 0)
+            {
+                printf("%s %d",strerror(errno),__LINE__);
+                exit(1);
+            }
+             if(g_cLockerInt == 1)
+            {
+                g_cLockerInt = 0;
+            }
            lnReturnVal = pthread_mutex_unlock(&g_cProcessMutex);
            if(lnReturnVal != 0)
            {
@@ -381,6 +425,13 @@ int main()
         printf("\n mutex init has failed\n"); 
         return 1; 
     } 
+    
+     if (pthread_mutex_init(&g_cProcessMutexCounter, NULL) != 0) 
+    {
+        printf("%s %d",strerror(errno), __LINE__);
+        printf("\n mutex init has failed\n"); 
+        return 1; 
+    } 
 #endif 
     // Creating socket file descriptor 
     //if ( (sockfd = socket(AF_INET, SOCK_DGRAM, 0)) < 0 ) { 
@@ -455,9 +506,35 @@ int main()
             printf("%s %d",strerror(errno), __LINE__);
             exit(1);
         }
-        
+        while(g_cLockerInt == 1)
+        {
+            
+        }
+        if(g_cLockerInt == 0)
+        {
+            g_cLockerInt = 1;
+        }
         cout << "mtex acquired process main" << endl;
         g_cProcessList.push_back(lstData);
+        
+        lnRetVal = pthread_mutex_lock(&g_cProcessMutexCounter);
+        if(lnRetVal != 0)
+        {
+            printf("%s %d",strerror(errno),__LINE__);
+            exit(1);
+        }
+        g_cListLen++;
+        lnRetVal = pthread_mutex_unlock(&g_cProcessMutexCounter);
+        if(lnRetVal != 0)
+        {
+            printf("%s %d",strerror(errno),__LINE__);
+            exit(1);
+        }
+        
+        if(g_cLockerInt == 1)
+        {
+            g_cLockerInt = 0;
+        }
         lnRetVal = pthread_mutex_unlock(&g_cProcessMutex);
         if(lnRetVal != 0)
         {
